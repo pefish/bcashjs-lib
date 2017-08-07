@@ -162,7 +162,7 @@ function expandInput (scriptSig, witnessStack) {
 }
 
 // could be done in expandInput, but requires the original Transaction for hashForSignature
-function fixMultisigOrder (input, transaction, vin) {
+function fixMultisigOrder (input, transaction, vin, amount) {
   if (input.redeemScriptType !== scriptTypes.MULTISIG || !input.redeemScript) return
   if (input.pubKeys.length === input.signatures.length) return
 
@@ -179,7 +179,12 @@ function fixMultisigOrder (input, transaction, vin) {
 
       // TODO: avoid O(n) hashForSignature
       var parsed = ECSignature.parseScriptSignature(signature)
-      var hash = transaction.hashForSignature(vin, input.redeemScript, parsed.hashType)
+      var hash
+      if (parsed.hashType & Transaction.SIGHASH_BITCOINCASHBIP143) {
+        hash = transaction.hashForCashSignature(vin, input.redeemScript, amount, parsed.hashType)
+      } else {
+        hash = transaction.hashForSignature(vin, input.redeemScript, parsed.hashType)
+      }
 
       // skip if signature does not match pubKey
       if (!keyPair.verify(hash, parsed.signature)) return false
@@ -488,8 +493,9 @@ TransactionBuilder.prototype.setVersion = function (version) {
   this.tx.version = version
 }
 
-TransactionBuilder.fromTransaction = function (transaction, network) {
+TransactionBuilder.fromTransaction = function (transaction, network, amounts) {
   var txb = new TransactionBuilder(network)
+  amounts = amounts || []
 
   // Copy transaction fields
   txb.setVersion(transaction.version)
@@ -511,7 +517,7 @@ TransactionBuilder.fromTransaction = function (transaction, network) {
 
   // fix some things not possible through the public API
   txb.inputs.forEach(function (input, i) {
-    fixMultisigOrder(input, transaction, i)
+    fixMultisigOrder(input, transaction, i, amounts[i])
   })
 
   return txb
