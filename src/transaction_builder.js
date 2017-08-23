@@ -82,7 +82,7 @@ function expandInput (scriptSig, witnessStack) {
     script = redeemScript
   }
 
-  var classifyWitness = bscript.classifyWitness(witnessStack)
+  var classifyWitness = bscript.classifyWitness(witnessStack, true)
   if (classifyWitness === scriptTypes.P2WSH) {
     witnessScript = witnessStack[witnessStack.length - 1]
     witnessScriptType = bscript.classifyOutput(witnessScript)
@@ -404,7 +404,6 @@ function buildStack (type, signatures, pubKeys, allowIncomplete) {
   }
 
   if (!allowIncomplete) throw new Error('Not enough signatures provided')
-
   return []
 }
 
@@ -465,7 +464,7 @@ function buildInput (input, allowIncomplete) {
   return {
     type: scriptType,
     script: bscript.compile(sig),
-    witness: witness
+    witness: bscript.toStack(witness)
   }
 }
 
