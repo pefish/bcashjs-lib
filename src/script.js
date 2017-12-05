@@ -24,13 +24,6 @@ function isPushOnly (value) {
   return types.Array(value) && value.every(isPushOnlyChunk)
 }
 
-function asMinimalOP (buffer) {
-  if (buffer.length === 0) return OPS.OP_0
-  if (buffer.length !== 1) return
-  if (buffer[0] >= 1 && buffer[0] <= 16) return OP_INT_BASE + buffer[0]
-  if (buffer[0] === 0x81) return OPS.OP_1NEGATE
-}
-
 function compile (chunks) {
   // TODO: remove me
   if (Buffer.isBuffer(chunks)) return chunks
@@ -41,7 +34,7 @@ function compile (chunks) {
     // data chunk
     if (Buffer.isBuffer(chunk)) {
       // adhere to BIP62.3, minimal push policy
-      if (chunk.length === 1 && asMinimalOP(chunk) !== undefined) {
+      if (chunk.length === 1 && (chunk[0] === 0x81 || (chunk[0] >= 1 && chunk[0] <= 16))) {
         return accum + 1
       }
 
@@ -59,14 +52,21 @@ function compile (chunks) {
     // data chunk
     if (Buffer.isBuffer(chunk)) {
       // adhere to BIP62.3, minimal push policy
-      var opcode = asMinimalOP(chunk)
-      if (opcode !== undefined) {
+      if (chunk.length === 1 && chunk[0] >= 1 && chunk[0] <= 16) {
+        var opcode = OP_INT_BASE + chunk[0]
         buffer.writeUInt8(opcode, offset)
         offset += 1
         return
       }
 
+      if (chunk.length === 1 && chunk[0] === 0x81) {
+        buffer.writeUInt8(OPS.OP_1NEGATE, offset)
+        offset += 1
+        return
+      }
+
       offset += pushdata.encode(buffer, chunk.length, offset)
+
       chunk.copy(buffer, offset)
       offset += chunk.length
 
@@ -107,13 +107,7 @@ function decompile (buffer) {
       var data = buffer.slice(i, i + d.number)
       i += d.number
 
-      // decompile minimally
-      var op = asMinimalOP(data)
-      if (op !== undefined) {
-        chunks.push(op)
-      } else {
-        chunks.push(data)
-      }
+      chunks.push(data)
 
     // opcode
     } else {
@@ -133,11 +127,7 @@ function toASM (chunks) {
 
   return chunks.map(function (chunk) {
     // data?
-    if (Buffer.isBuffer(chunk)) {
-      var op = asMinimalOP(chunk)
-      if (op === undefined) return chunk.toString('hex')
-      chunk = op
-    }
+    if (Buffer.isBuffer(chunk)) return chunk.toString('hex')
 
     // opcode!
     return REVERSE_OPS[chunk]

@@ -91,9 +91,7 @@ describe('TransactionBuilder', function () {
 
         var tx = Transaction.fromHex(f.txHex)
         var txb = TransactionBuilder.fromTransaction(tx, network)
-        var txAfter = f.incomplete ? txb.buildIncomplete() : txb.build()
-
-        assert.strictEqual(txAfter.toHex(), f.txHex)
+        assert.strictEqual(txb.build().toHex(), f.txHex)
         assert.strictEqual(txb.network, network)
       })
     })
@@ -307,8 +305,7 @@ describe('TransactionBuilder', function () {
     fixtures.valid.build.forEach(function (f) {
       it('builds "' + f.description + '"', function () {
         var txb = construct(f)
-        var tx = f.incomplete ? txb.buildIncomplete() : txb.build()
-
+        var tx = txb.build()
         assert.strictEqual(tx.toHex(), f.txHex)
       })
     })

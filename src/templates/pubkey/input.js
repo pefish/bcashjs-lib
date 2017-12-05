@@ -1,6 +1,7 @@
 // {signature}
 
 var bscript = require('../../script')
+var types = require('../../types')
 var typeforce = require('typeforce')
 
 function check (script) {
@@ -12,7 +13,7 @@ function check (script) {
 check.toJSON = function () { return 'pubKey input' }
 
 function encodeStack (signature) {
-  typeforce(bscript.isCanonicalSignature, signature)
+  typeforce(types.Buffer, signature)
   return [signature]
 }
 

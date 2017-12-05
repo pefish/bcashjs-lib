@@ -2,7 +2,6 @@ var async = require('async')
 var bitcoin = require('../../')
 var Blockchain = require('cb-http-client')
 var coinSelect = require('coinselect')
-var dhttp = require('dhttp/200')
 var typeforce = require('typeforce')
 var types = require('../../src/types')
 
@@ -11,12 +10,11 @@ var blockchain = new Blockchain('https://api.blocktrail.com/cb/v0.2.1/tBTC', { a
 var kpNetwork = bitcoin.networks.testnet
 var keyPair = bitcoin.ECPair.fromWIF('cQqjeq2rxqwnqwMewJhkNtJDixtX8ctA4bYoWHdxY4xRPVvAEjmk', kpNetwork)
 var kpAddress = keyPair.getAddress()
-var conflicts = {}
 
 function fundAddress (unspents, outputs, callback) {
   // avoid too-long-mempool-chain
   unspents = unspents.filter(function (x) {
-    return x.confirmations > 0 && !conflicts[x.txId + x.vout]
+    return x.confirmations > 0
   })
 
   var result = coinSelect(unspents, outputs, 10)
@@ -24,12 +22,10 @@ function fundAddress (unspents, outputs, callback) {
 
   var txb = new bitcoin.TransactionBuilder(kpNetwork)
   result.inputs.forEach(function (x) {
-    conflicts[x.txId + x.vout] = true
     txb.addInput(x.txId, x.vout)
   })
 
   result.outputs.forEach(function (x) {
-    if (x.address) console.warn('funding ' + x.address + ' w/ ' + x.value)
     txb.addOutput(x.address || kpAddress, x.value)
   })
 
@@ -38,14 +34,17 @@ function fundAddress (unspents, outputs, callback) {
   })
 
   var tx = txb.build()
+  var txId = tx.getId()
 
   blockchain.transactions.propagate(tx.toHex(), function (err) {
     if (err) return callback(err)
 
-    var txId = tx.getId()
-    callback(null, outputs.map(function (x, i) {
-      return { txId: txId, vout: i, value: x.value }
-    }))
+    // FIXME: @blocktrail can be very slow, give it time
+    setTimeout(function () {
+      callback(null, outputs.map(function (_, i) {
+        return { txId: txId, vout: i }
+      }))
+    }, 3000)
   })
 }
 
@@ -70,29 +69,20 @@ blockchain.faucet = function faucet (address, value, callback) {
 }
 
 // verify TX was accepted
-blockchain.verify = function verify (address, txId, value, done) {
+blockchain.verify = function (address, txId, value, done) {
   async.retry(5, function (callback) {
     setTimeout(function () {
       // check that the above transaction included the intended address
-      dhttp({
-        method: 'POST',
-        url: 'https://api.ei8ht.com.au:9443/3/txs',
-        body: [txId]
-      }, function (err, result) {
+      blockchain.addresses.unspents(blockchain.RETURN_ADDRESS, function (err, unspents) {
         if (err) return callback(err)
-        if (!result[txId]) return callback(new Error('Could not find ' + txId))
+        if (!unspents.some(function (x) {
+          return x.txId === txId && x.value === value
+        })) return callback(new Error('Could not find unspent'))
+
         callback()
       })
-    }, 400)
+    }, 600)
   }, done)
-}
-
-blockchain.transactions.propagate = function broadcast (txHex, callback) {
-  dhttp({
-    method: 'POST',
-    url: 'https://api.ei8ht.com.au:9443/3/pushtx',
-    body: txHex
-  }, callback)
 }
 
 blockchain.RETURN_ADDRESS = kpAddress

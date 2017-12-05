@@ -155,7 +155,7 @@
         "06"
       ],
       "nonstandard": {
-        "scriptSig": "OP_6",
+        "scriptSig": "06",
         "scriptSigHex": "0106"
       }
     },

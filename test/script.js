@@ -24,6 +24,7 @@ describe('script', function () {
     fixtures.valid.forEach(function (f) {
       it('encodes/decodes ' + f.asm, function () {
         var scriptSig = bscript.fromASM(f.asm)
+
         assert.strictEqual(bscript.toASM(scriptSig), f.asm)
       })
     })
@@ -51,16 +52,17 @@ describe('script', function () {
   describe('toStack', function () {
     fixtures.valid.forEach(function (f) {
       it('returns ' + !!f.stack + ' for ' + f.asm, function () {
-        if (!f.stack || !f.asm) return
-
         var script = bscript.fromASM(f.asm)
 
-        var stack = bscript.toStack(script)
-        assert.deepEqual(stack.map(function (x) {
-          return x.toString('hex')
-        }), f.stack)
-
-        assert.equal(bscript.toASM(bscript.compile(stack)), f.asm, 'should rebuild same script from stack')
+        if (f.stack && f.asm) {
+          try {
+            var stack = bscript.toStack(script)
+            assert.deepEqual(stack.map(function (x) { return x.toString('hex') }), f.stack)
+            assert.equal(bscript.toASM(bscript.compile(stack)), f.asm, 'should rebuild same script from stack')
+          } catch (e) {
+            assert.strictEqual(f.stack, undefined)
+          }
+        }
       })
     })
   })
